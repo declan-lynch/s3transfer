@@ -1,6 +1,7 @@
 package com.sherston.executors;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 /**
@@ -13,10 +14,10 @@ import java.util.concurrent.Semaphore;
  *
  */
 public class BoundedExecutor {
-	private final Executor exec;
+	private final ExecutorService exec;
 	private final Semaphore semaphore;
 
-	public BoundedExecutor(Executor exec, int bound) {
+	public BoundedExecutor(ExecutorService exec, int bound) {
 		this.exec = exec;
 		this.semaphore = new Semaphore(bound);
 	}
@@ -25,7 +26,7 @@ public class BoundedExecutor {
 			RejectedExecutionException {
 		semaphore.acquire();
 		try {
-			exec.execute(new Runnable() {
+			exec.execute(new Runnable() {				
 				public void run() {
 					try {
 						command.run();
@@ -38,5 +39,9 @@ public class BoundedExecutor {
 			semaphore.release();
 			throw e;
 		}
+	}
+	
+	public void shutdown(){
+		exec.shutdown();
 	}
 }

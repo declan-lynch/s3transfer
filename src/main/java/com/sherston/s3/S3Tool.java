@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.apache.commons.cli.CommandLine;
@@ -71,7 +72,7 @@ public class S3Tool {
 			if (commands.hasOption("help")) {
 				printUsage("S3Tool", options);
 			} else {
-				this.runCommand();
+				this.runCommand();				
 			}
 		} catch (ParseException pe) {
 			System.out
@@ -95,6 +96,7 @@ public class S3Tool {
 			InstantiationException, IllegalAccessException {
 		this.registerCommandClass("com.sherston.s3.command.NullCommand");
 		this.registerCommandClass("com.sherston.s3.command.S3CopyMover");
+		this.registerCommandClass("com.sherston.s3.command.S3FSFolderFixerCommand");
 	}
 
 	/**
@@ -125,7 +127,7 @@ public class S3Tool {
 		int threadNum = (int) Integer.parseInt(commands.getOptionValue(
 				OPT_THREADS, String.valueOf(DEFAULT_THREADS)));
 
-		Executor e = Executors.newFixedThreadPool(threadNum);
+		ExecutorService e = Executors.newFixedThreadPool(threadNum);
 		BoundedExecutor be = new BoundedExecutor(e, threadNum);
 
 		return be;
@@ -160,7 +162,8 @@ public class S3Tool {
 
 		S3Service s3 = getS3Service(commands);
 		BoundedExecutor be = getBoundedExecutor(commands);
-		command.runCommand(s3, be, commands, System.out);
+		command.runCommand(s3, be, commands, System.out);		
+		be.shutdown();
 	}
 
 	/**
@@ -266,7 +269,7 @@ public class S3Tool {
 
 		OptionBuilder.hasArg(true);
 		OptionBuilder.withLongOpt(CHUNKSIZE);
-		OptionBuilder.withDescription("How much to get from s3 at a time?");
+		OptionBuilder.withDescription("How much to get from s3 at a time? Default 100, max 1000.");
 		final Option chunksize = OptionBuilder.create();
 
 		final Options opt = new Options();

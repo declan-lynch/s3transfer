@@ -1,10 +1,17 @@
 package com.sherston.s3.command;
 
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.Writer;
 import java.net.MalformedURLException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.RejectedExecutionException;
 
@@ -24,16 +31,23 @@ import com.sherston.s3.S3Tool;
 import com.sherston.s3.S3Url;
 
 /**
- * Handles the moving of files between buckets with an AWS COPY command
+ * Due to the problem, that s3fs has a weird problem creating folder structures,
+ * sometimes it might by that ther folders are visible in the AWS console but
+ * invisible in s3fs mounted on disk
+ * 
+ * To fix this problem, one needs to create a folder using mkdir on the mounted
+ * share where the last folder was. This is done by reading the API and figuring
+ * out the folders, than creating them.
  * 
  * @author pejot
  * 
  */
-public class S3CopyMover implements Command {
-	public static final String ENABLED = "copy";
+public class S3FSFolderFixerCommand implements Command {
+	public static final String ENABLED = "s3fix";
+	public static final String DEST_FOLDER = "dest-dir";
+
 	private S3Url sourceUrl;
-	private S3Url destUrl;
-	private BoundedExecutor executor;
+	private Path destPath;
 	private S3Service s3;
 
 	@Override
@@ -44,8 +58,14 @@ public class S3CopyMover implements Command {
 				.withDescription("Uses the D3Copy command, copying the files from source to destination.");
 		Option enabled = OptionBuilder.create();
 
+		OptionBuilder.hasArg(true);
+		OptionBuilder.withLongOpt(DEST_FOLDER);
+		OptionBuilder
+				.withDescription("(s3fix only) This is the directory where the problematic s3fs share is mounted.");
+		Option destDir = OptionBuilder.create();
+
 		OptionGroup gr = new OptionGroup();
-		gr.addOption(enabled);
+		gr.addOption(enabled).addOption(destDir);
 
 		return gr;
 	}
@@ -58,16 +78,22 @@ public class S3CopyMover implements Command {
 	@Override
 	public void runCommand(S3Service s3, BoundedExecutor ex, CommandLine cli,
 			OutputStream log) {
-		executor = ex;
 		this.s3 = s3;
 		String sourceUrlString = cli.getOptionValue(S3Tool.SOURCE_URL);
-		String destUrlString = cli.getOptionValue(S3Tool.DESTINATION_URL);
+		Path destDirString = Paths.get(cli.getOptionValue(DEST_FOLDER));
 
+		try {
+			destPath = destDirString.toRealPath();
+			System.out.println("path: " + destDirString);
+			System.out.println("realpath: " + destPath);
+		} catch (IOException x) {
+			throw new RuntimeException("The destionation path '"
+					+ destDirString + "' doesn't exist");
+		}
 		Writer out = new PrintWriter(log);
 
 		try {
 			sourceUrl = new S3Url(sourceUrlString);
-			destUrl = new S3Url(destUrlString);
 		} catch (MalformedURLException e) {
 			throw new RuntimeException("There is a paramater problem: "
 					+ e.getMessage());
@@ -86,27 +112,27 @@ public class S3CopyMover implements Command {
 				out.write("Getting " + chunkSize + " from " + sourceUrlString
 						+ " ...\r\n");
 				out.flush();
-				
+
 				StorageObjectsChunk chunk = s3.listObjectsChunked(
 						sourceUrl.getBucketName(), sourceUrl.getPath(), null,
 						chunkSize, lastChunkKey);
-				
+
 				if (chunk == null || chunk.getObjects().length == 0) {
 					// nothing left to read
 					keepGoing = false;
 					break;
 				} else {
-					out.write("Distributing tasks to move...\r\n");
-					sendForExecution(chunk);
+					out.write("Creating folders...\r\n");
+					lastChunkKey = sendForExecution(chunk);
 					totalDone += chunk.getObjects().length;
-					out.write("Total done: " + totalDone + "\r\n");
+					out.write("Total processed: " + totalDone + "\r\n");
 					out.flush();
-					lastChunkKey = chunk.getObjects()[chunk.getObjects().length - 1]
-							.getKey();
 				}
 
-			} catch (IOException | ServiceException e) {
+			} catch (Exception e) {
+				System.out.println("abort, abort!!");
 				System.out.println(e.getMessage());
+				e.printStackTrace();
 			}
 
 		}
@@ -121,84 +147,28 @@ public class S3CopyMover implements Command {
 	 */
 	private String sendForExecution(StorageObjectsChunk chunk) {
 		String lastObject = null;
-		for (StorageObject obj : chunk.getObjects()) {
-			if (obj.getKey().endsWith("/")) {				
-				continue;
-			}
-			lastObject = obj.getKey();
 
-			StorageObject destObject = S3ObjectCloner.getClone((S3Object) obj,
-					sourceUrl.getPath(), destUrl.getPath(), null);
+		String separator = System.getProperty("file.separator");
+
+		for (StorageObject obj : chunk.getObjects()) {
+			Path p = Paths.get(obj.getKey().replace(sourceUrl.getPath(), ""));
+
+			if (p.startsWith(separator)) {
+				p = Paths.get(p.toString().substring(1, p.toString().length()));
+			}
+			p = Paths.get(this.destPath + separator + p.toString());			
 
 			try {
-				executor.submitTask(new Move(this.s3, obj.getBucketName(),
-						destUrl.getBucketName(), obj, destObject, true));
-			} catch (RejectedExecutionException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
+				Files.createDirectories(p.getParent());
+			} catch (IOException e) {
+				System.out.println("Problem creating structure: " + p.getParent());
 				e.printStackTrace();
 			}
+
+			lastObject = obj.getKey();
 		}
 
 		return lastObject;
-	}
-
-	class Move implements Runnable {
-
-		private S3Service s3;
-		private String sourceBucket;
-		private String destBucket;
-		private StorageObject sourceObject;
-		private StorageObject destObject;
-		private boolean checkMd5Enabled;
-
-		public Move(S3Service s3, String sourceBucket, String destBucket,
-				StorageObject sourceObject, StorageObject destObject,
-				boolean checkMd5Enabled) {
-			super();
-			this.s3 = s3;
-			this.sourceBucket = sourceBucket;
-			this.destBucket = destBucket;
-			this.sourceObject = sourceObject;
-			this.destObject = destObject;
-			this.checkMd5Enabled = checkMd5Enabled;
-		}
-
-		@Override
-		public void run() {
-			if (checkMd5Enabled && objectAlreadyExists()) {
-				System.out.println("skipping: " + destObject.getKey());
-				return;
-			}
-
-			try {
-				Map<String, Object> moveResult = s3.copyObject(
-						this.sourceBucket, sourceObject.getKey(),
-						this.destBucket, this.destObject, false);
-			} catch (ServiceException e) {
-				e.printStackTrace();
-			}
-		}
-
-		/**
-		 * Checks the object detais if it already may exist
-		 * 
-		 * @return
-		 */
-		public boolean objectAlreadyExists() {
-			try {
-				StorageObject destObjectdetail = s3.getObjectDetails(
-						this.destBucket, destObject.getKey());
-				return destObjectdetail.getETag()
-						.equals(sourceObject.getETag());
-			} catch (ServiceException e) {
-
-			}
-			return false;
-		}
-
 	}
 
 }
