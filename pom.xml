@@ -3,10 +3,11 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.sherston</groupId>
 	<artifactId>s3transfer</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>0.0.2</version>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<MAIN_CLASS>com.sherston.s3.S3Tool</MAIN_CLASS>
+		<version.file>/src/main/java/com/sherston/s3/Version.java</version.file>
 	</properties>
 	<build>
 		<sourceDirectory>src/main/java</sourceDirectory>
@@ -31,18 +32,9 @@
 					</dependency>
 				</dependencies>
 			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-jar-plugin</artifactId>
-				<configuration>
-					<archive>
-						<manifest>
-							<addClasspath>true</addClasspath>
-							<mainClass>${MAIN_CLASS}</mainClass>
-						</manifest>
-					</archive>
-				</configuration>
-			</plugin>
+			<!-- <plugin> <groupId>org.apache.maven.plugins</groupId> <artifactId>maven-jar-plugin</artifactId> 
+				<configuration> <archive> <manifest> <addClasspath>true</addClasspath> <mainClass>${MAIN_CLASS}</mainClass> 
+				</manifest> </archive> </configuration> </plugin> -->
 
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
@@ -67,11 +59,12 @@
 					</executableDependency>
 				</configuration>
 			</plugin>
-
-
 			<plugin>
 				<artifactId>maven-assembly-plugin</artifactId>
 				<configuration>
+					<finalName>s3t-${project.version}</finalName>
+					<appendAssemblyId>false</appendAssemblyId>
+					<classifier>beta-1</classifier>
 					<archive>
 						<manifest>
 							<mainClass>${MAIN_CLASS}</mainClass>
@@ -92,6 +85,34 @@
 				</executions>
 			</plugin>
 
+			<!-- <plugin>
+				<groupId>com.google.code.maven-replacer-plugin</groupId>
+				<artifactId>maven-replacer-plugin</artifactId>
+				<version>1.4.0</version>
+				<executions>
+					<execution>
+						<phase>process-sources</phase>
+						<goals>
+							<goal>replace</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<file>${version.file}</file>
+					<outputFile>${version.file}</outputFile>
+					<replacements>
+						<replacement>
+							<token>@buildtime@</token>
+							<value>${maven.build.timestamp}</value>
+						</replacement>
+						<replacement>
+							<token>@pomversion@</token>
+							<value>${project.version}</value>
+						</replacement>
+					</replacements>
+				</configuration>
+			</plugin>
+ -->
 		</plugins>
 	</build>
 	<dependencies>

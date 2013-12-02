@@ -1,7 +1,6 @@
 package com.sherston.s3.command;
 
 import java.io.OutputStream;
-import java.math.BigDecimal;
 import java.net.MalformedURLException;
 
 import org.apache.commons.cli.CommandLine;
@@ -17,10 +16,9 @@ import com.sherston.executors.BoundedExecutor;
 import com.sherston.s3.S3Tool;
 import com.sherston.s3.S3Url;
 
-public class NullCommand implements Command {
+public class CounterCommand implements Command {
 	private S3Url sourceUrl;
-	private S3Url destUrl;
-	public static final String OPT_ENABLED = "dummy";
+	public static final String OPT_ENABLED = "counter";
 	private S3Service s3;
 
 	public OptionGroup getCommandOptions() {
@@ -28,8 +26,8 @@ public class NullCommand implements Command {
 				.hasArg(false)
 				.withLongOpt(OPT_ENABLED)
 				.withDescription(
-						"Selects the dummy command, that just prints out the keys.")
-				.create("d");
+						"Selects the counter command. This command just counts the object in the bucket.")
+				.create();
 
 		OptionGroup group = new OptionGroup();
 		group.addOption(enabled);
@@ -47,11 +45,10 @@ public class NullCommand implements Command {
 			OutputStream log) {
 		this.s3 = s3;
 		String sourceUrlString = cli.getOptionValue(S3Tool.SOURCE_URL);
-		String destUrlString = cli.getOptionValue(S3Tool.DESTINATION_URL);
 
 		try {
 			this.sourceUrl = new S3Url(sourceUrlString);
-			this.destUrl = new S3Url(destUrlString);
+
 		} catch (MalformedURLException e) {
 			throw new RuntimeException("There is a paramater problem: "
 					+ e.getMessage());
@@ -70,6 +67,7 @@ public class NullCommand implements Command {
 		long totalCount = 0;
 		long curTime;
 		boolean keepGoing = true;
+
 		while (keepGoing) {
 			try {
 
@@ -83,16 +81,13 @@ public class NullCommand implements Command {
 					// nothing left to read
 					keepGoing = false;
 				} else {
-					for (StorageObject obj : chunk.getObjects()) {
-						lastChunkKey = obj.getKey();
-						System.out.print(".");
-					}
+					totalCount += chunk.getObjects().length;
 				}
 
 				curTime = System.currentTimeMillis();
 
 				long elapsedMillis = curTime - startTime;
-				double perSec = ((double)((double)totalCount / (double)elapsedMillis)) * 1000;
+				double perSec = ((double) ((double) totalCount / (double) elapsedMillis)) * 1000;
 
 				String info = "Getting from " + sourceUrlString
 						+ " in chunks: " + chunkSize + " at " + perSec;

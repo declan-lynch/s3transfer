@@ -1,32 +1,23 @@
 package com.sherston.s3.command;
 
-import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.Writer;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Map;
-import java.util.concurrent.RejectedExecutionException;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.OptionGroup;
 import org.jets3t.service.S3Service;
-import org.jets3t.service.ServiceException;
 import org.jets3t.service.StorageObjectsChunk;
-import org.jets3t.service.model.S3Object;
 import org.jets3t.service.model.StorageObject;
 
 import com.sherston.executors.BoundedExecutor;
-import com.sherston.s3.S3ObjectCloner;
 import com.sherston.s3.S3Tool;
 import com.sherston.s3.S3Url;
 

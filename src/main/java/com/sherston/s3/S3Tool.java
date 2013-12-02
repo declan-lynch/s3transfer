@@ -27,7 +27,7 @@ import org.jets3t.service.security.AWSCredentials;
 
 import com.sherston.executors.BoundedExecutor;
 import com.sherston.s3.command.Command;
-import com.sherston.s3.command.NullCommand;
+import com.sherston.s3.command.CounterCommand;
 
 /**
  * S3Tool
@@ -94,7 +94,7 @@ public class S3Tool {
 	 */
 	private void initCommands() throws ClassNotFoundException,
 			InstantiationException, IllegalAccessException {
-		this.registerCommandClass("com.sherston.s3.command.NullCommand");
+		this.registerCommandClass("com.sherston.s3.command.CounterCommand");
 		this.registerCommandClass("com.sherston.s3.command.S3CopyMover");
 		this.registerCommandClass("com.sherston.s3.command.S3FSFolderFixerCommand");
 	}
@@ -164,6 +164,7 @@ public class S3Tool {
 		BoundedExecutor be = getBoundedExecutor(commands);
 		command.runCommand(s3, be, commands, System.out);		
 		be.shutdown();
+		System.out.println("");
 	}
 
 	/**

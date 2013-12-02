@@ -16,6 +16,9 @@ import org.junit.Test;
  */
 public class S3UrlTest {
 
+	/**
+	 * Tests that the url's get interpreted by the class properly
+	 */
 	@Test
 	public void testParsingUrls() {
 

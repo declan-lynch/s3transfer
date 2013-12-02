@@ -1,7 +1,6 @@
 package com.sherston.s3;
 
 import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
